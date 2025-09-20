@@ -10,14 +10,22 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
         .dropzone {
             border: 2px dashed #cbd5e0;
-            border-radius: 0.5rem;
-            transition: all 0.3s;
+            border-radius: 0.75rem;
+            transition: all 0.3s ease;
         }
         .dropzone.dragover {
             border-color: #3b82f6;
             background-color: #eff6ff;
+            transform: scale(1.02);
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2);
         }
         .spinner {
             border: 2px solid #f3f3f3;
@@ -33,22 +41,131 @@
             animation: fadeIn 0.5s ease-in;
         }
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
         .progress-bar {
-            transition: width 0.5s ease-in-out;
+            transition: width 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .typewriter {
+            overflow: hidden;
+            border-right: .15em solid #3b82f6;
+            white-space: nowrap;
+            animation: typing 3.5s steps(40, end), blink-caret .75s step-end infinite;
+        }
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+        @keyframes blink-caret {
+            from, to { border-color: transparent }
+            50% { border-color: #3b82f6; }
+        }
+        .bounce-in {
+            animation: bounceIn 0.6s;
+        }
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        // API Base URL - Update this to match your FastAPI backend
+        const API_BASE_URL = 'http://localhost:8000'; // Change this to your backend URL
+
+        // API Key Configuration Component
+        const ApiKeyConfig = ({ apiKey, setApiKey, onSave, isOpen, onClose }) => {
+            const [tempKey, setTempKey] = useState(apiKey);
+            
+            useEffect(() => {
+                setTempKey(apiKey);
+            }, [apiKey, isOpen]);
+            
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave(tempKey);
+                onClose();
+            };
+            
+            if (!isOpen) return null;
+            
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-800">API Key Configuration</h3>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    API Key
+                                </label>
+                                <input
+                                    type="password"
+                                    value={tempKey}
+                                    onChange={(e) => setTempKey(e.target.value)}
+                                    placeholder="Enter your API key"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    This key will be used to authenticate with the backend API.
+                                </p>
+                            </div>
+                            <div className="flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                >
+                                    Save Key
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
         // PDF Upload Component
-        const PDFUpload = ({ onUpload, uploadStatus, setUploadStatus }) => {
+        const PDFUpload = ({ onUpload, uploadStatus, setUploadStatus, isLoading, apiKey }) => {
             const [isDragging, setIsDragging] = useState(false);
             const fileInputRef = useRef(null);
 
@@ -83,28 +200,40 @@
                     return;
                 }
                 
+                if (!apiKey) {
+                    setUploadStatus({ message: 'Please set an API key first', error: true });
+                    return;
+                }
+                
                 onUpload(pdfFiles);
             };
 
             const handleClick = () => {
+                if (!apiKey) {
+                    setUploadStatus({ message: 'Please set an API key first', error: true });
+                    return;
+                }
                 fileInputRef.current.click();
             };
 
             return (
-                <div className="bg-white rounded-xl shadow-md p-6">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Upload Research PDFs</h2>
+                <div className="bg-white rounded-2xl shadow-lg p-6 card-hover">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <i className="fas fa-file-upload text-blue-500 mr-2"></i>
+                        Upload Research PDFs
+                    </h2>
                     
                     <div 
-                        className={`dropzone p-8 text-center cursor-pointer ${isDragging ? 'dragover' : ''}`}
+                        className={`dropzone p-8 text-center cursor-pointer ${isDragging ? 'dragover' : ''} ${isLoading ? 'opacity-50' : ''}`}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        onClick={handleClick}
+                        onClick={isLoading ? null : handleClick}
                     >
-                        <i className="fas fa-file-pdf text-4xl text-red-500 mb-3"></i>
+                        <i className="fas fa-file-pdf text-5xl text-red-500 mb-3"></i>
                         <div className="mt-4 text-gray-600">
-                            <p>Drag and drop PDF files here, or <span className="text-blue-600">click to browse</span></p>
-                            <p className="text-sm text-gray-500 mt-1">Supports multiple PDF files</p>
+                            <p className="text-lg">Drag and drop PDF files here, or <span className="text-blue-600 font-medium">click to browse</span></p>
+                            <p className="text-sm text-gray-500 mt-2">Supports multiple PDF files</p>
                         </div>
                         <input 
                             ref={fileInputRef}
@@ -113,11 +242,13 @@
                             accept=".pdf"
                             className="hidden"
                             onChange={handleFileChange}
+                            disabled={isLoading}
                         />
                     </div>
                     
                     {uploadStatus && (
-                        <div className={`mt-4 p-3 rounded-lg ${uploadStatus.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                        <div className={`mt-4 p-3 rounded-lg fade-in ${uploadStatus.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            <i className={`fas ${uploadStatus.error ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2`}></i>
                             {uploadStatus.message} {uploadStatus.chunks && `(${uploadStatus.chunks} chunks processed)`}
                         </div>
                     )}
@@ -126,28 +257,57 @@
         };
 
         // Question Input Component
-        const QuestionInput = ({ question, setQuestion, onAsk, isLoading }) => {
+        const QuestionInput = ({ question, setQuestion, onAsk, isLoading, hasFiles, apiKey }) => {
+            const inputRef = useRef(null);
+
             const handleSubmit = (e) => {
                 e.preventDefault();
+                
+                if (!apiKey) {
+                    alert('Please set an API key first');
+                    return;
+                }
+                
                 onAsk();
             };
 
+            useEffect(() => {
+                if (!isLoading) {
+                    inputRef.current?.focus();
+                }
+            }, [isLoading]);
+
             return (
-                <div className="bg-white rounded-xl shadow-md p-6">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Ask a Question</h2>
+                <div className="bg-white rounded-2xl shadow-lg p-6 card-hover">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <i className="fas fa-question-circle text-blue-500 mr-2"></i>
+                        Ask a Question
+                    </h2>
                     <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4">
-                        <input 
-                            type="text" 
-                            value={question}
-                            onChange={(e) => setQuestion(e.target.value)}
-                            placeholder="Enter your research question..."
-                            className="flex-grow px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            disabled={isLoading}
-                        />
+                        <div className="flex-grow relative">
+                            <input 
+                                ref={inputRef}
+                                type="text" 
+                                value={question}
+                                onChange={(e) => setQuestion(e.target.value)}
+                                placeholder="Enter your research question..."
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-12"
+                                disabled={isLoading || !hasFiles}
+                            />
+                            {question && !isLoading && (
+                                <button 
+                                    type="button"
+                                    onClick={() => setQuestion('')}
+                                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            )}
+                        </div>
                         <button 
                             type="submit"
-                            disabled={isLoading || !question.trim()}
-                            className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            disabled={isLoading || !question.trim() || !hasFiles || !apiKey}
+                            className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300"
                         >
                             {isLoading ? (
                                 <>
@@ -155,10 +315,25 @@
                                     Processing...
                                 </>
                             ) : (
-                                'Ask Question'
+                                <>
+                                    <i className="fas fa-paper-plane mr-2"></i>
+                                    Ask Question
+                                </>
                             )}
                         </button>
                     </form>
+                    {!hasFiles && (
+                        <p className="text-sm text-gray-500 mt-3">
+                            <i className="fas fa-info-circle mr-1"></i>
+                            Upload PDF files first to ask questions
+                        </p>
+                    )}
+                    {!apiKey && (
+                        <p className="text-sm text-red-500 mt-3">
+                            <i className="fas fa-exclamation-triangle mr-1"></i>
+                            Please set an API key to use this feature
+                        </p>
+                    )}
                 </div>
             );
         };
@@ -167,9 +342,10 @@
         const ResultsDisplay = ({ results, isLoading }) => {
             if (isLoading) {
                 return (
-                    <div className="bg-white rounded-xl shadow-md p-8 text-center fade-in">
+                    <div className="bg-white rounded-2xl shadow-lg p-8 text-center fade-in">
                         <div className="spinner w-12 h-12 mx-auto mb-4"></div>
                         <p className="text-gray-600">Analyzing your research documents...</p>
+                        <p className="text-sm text-gray-400 mt-2">This may take a few moments</p>
                     </div>
                 );
             }
@@ -177,13 +353,24 @@
             if (!results) return null;
 
             return (
-                <div className="bg-white rounded-xl shadow-md p-6 fade-in">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-6">Research Results</h2>
+                <div className="bg-white rounded-2xl shadow-lg p-6 fade-in card-hover">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+                            <i className="fas fa-chart-line text-blue-500 mr-2"></i>
+                            Research Results
+                        </h2>
+                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                            {Math.round(results.confidence * 100)}% Confidence
+                        </span>
+                    </div>
                     
                     {/* Answer Card */}
                     <div className="mb-6">
-                        <h3 className="font-medium text-gray-700 mb-2">Answer:</h3>
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <h3 className="font-medium text-gray-700 mb-2 flex items-center">
+                            <i className="fas fa-comment-dots text-blue-400 mr-2"></i>
+                            Answer:
+                        </h3>
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                             <p className="text-gray-800">{results.answer}</p>
                         </div>
                     </div>
@@ -196,26 +383,41 @@
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div 
-                                className="progress-bar bg-blue-600 h-2.5 rounded-full" 
-                                style={{ width: `${results.confidence * 100}%` }}
+                                className="progress-bar h-2.5 rounded-full" 
+                                style={{ 
+                                    width: `${results.confidence * 100}%`,
+                                    background: `linear-gradient(90deg, #3b82f6, #60a5fa)`
+                                }}
                             ></div>
                         </div>
                     </div>
                     
                     {/* Citations */}
                     <div>
-                        <h3 className="font-medium text-gray-700 mb-2">Citations:</h3>
+                        <h3 className="font-medium text-gray-700 mb-2 flex items-center">
+                            <i className="fas fa-book text-blue-400 mr-2"></i>
+                            Citations:
+                        </h3>
                         <div className="space-y-3">
                             {results.citations.map((citation, index) => (
-                                <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <div key={index} className="bg-gray-50 p-4 rounded-xl border border-gray-200 slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
                                     <div className="flex items-start">
-                                        <span className="bg-blue-100 text-blue-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">
+                                        <span className="bg-blue-500 text-white text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full flex-shrink-0">
                                             {index + 1}
                                         </span>
                                         <p className="text-gray-800">{citation.text}</p>
                                     </div>
                                     {citation.source && (
-                                        <p className="text-sm text-gray-500 mt-2">Source: {citation.source}</p>
+                                        <p className="text-sm text-gray-500 mt-2 flex items-center">
+                                            <i className="fas fa-file-alt mr-1"></i>
+                                            Source: {citation.source}
+                                        </p>
+                                    )}
+                                    {citation.page && (
+                                        <p className="text-sm text-gray-500 mt-1 flex items-center">
+                                            <i className="fas fa-file-invoice mr-1"></i>
+                                            Page: {citation.page}
+                                        </p>
                                     )}
                                 </div>
                             ))}
@@ -226,24 +428,29 @@
         };
 
         // File List Component
-        const FileList = ({ files, onRemove }) => {
+        const FileList = ({ files, onRemove, apiKey }) => {
             if (files.length === 0) return null;
 
             return (
-                <div className="bg-white rounded-xl shadow-md p-6 fade-in">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Uploaded Files</h2>
+                <div className="bg-white rounded-2xl shadow-lg p-6 fade-in card-hover">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <i className="fas fa-file-alt text-blue-500 mr-2"></i>
+                        Uploaded Files
+                    </h2>
                     <ul className="divide-y divide-gray-200">
                         {files.map((file, index) => (
-                            <li key={index} className="py-3 flex justify-between items-center">
-                                <div className="flex items-center">
-                                    <i className="fas fa-file-pdf text-red-500 mr-3"></i>
-                                    <span className="text-gray-700">{file.name}</span>
+                            <li key={index} className="py-3 flex justify-between items-center bounce-in" style={{ animationDelay: `${index * 0.1}s` }}>
+                                <div className="flex items-center truncate">
+                                    <i className="fas fa-file-pdf text-red-500 mr-3 text-lg"></i>
+                                    <span className="text-gray-700 truncate">{file.name}</span>
+                                    <span className="text-xs text-gray-500 ml-2">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
                                 </div>
                                 <button 
-                                    onClick={() => onRemove(index)}
-                                    className="text-red-500 hover:text-red-700"
+                                    onClick={() => apiKey ? onRemove(index) : alert('Please set an API key first')}
+                                    className="text-red-500 hover:text-red-700 transition-colors duration-200"
+                                    title="Remove file"
                                 >
-                                    <i className="fas fa-times"></i>
+                                    <i className="fas fa-times-circle"></i>
                                 </button>
                             </li>
                         ))}
@@ -258,21 +465,70 @@
             const [question, setQuestion] = useState('');
             const [results, setResults] = useState(null);
             const [isLoading, setIsLoading] = useState(false);
-            const [reportCount, setReportCount] = useState(0);
             const [uploadStatus, setUploadStatus] = useState(null);
             const [autoRefresh, setAutoRefresh] = useState(false);
+            const [reportCount, setReportCount] = useState(0);
+            const [connectionStatus, setConnectionStatus] = useState('checking');
+            const [apiKey, setApiKey] = useState(localStorage.getItem('apiKey') || '');
+            const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+            // Save API key to localStorage when it changes
+            useEffect(() => {
+                if (apiKey) {
+                    localStorage.setItem('apiKey', apiKey);
+                } else {
+                    localStorage.removeItem('apiKey');
+                }
+            }, [apiKey]);
+
+            // Check backend connection on component mount or when API key changes
+            useEffect(() => {
+                if (apiKey) {
+                    checkBackendConnection();
+                } else {
+                    setConnectionStatus('no-key');
+                }
+            }, [apiKey]);
 
             // Simulate auto-refresh every 30 seconds
             useEffect(() => {
                 let interval;
-                if (autoRefresh && results) {
+                if (autoRefresh && results && apiKey) {
                     interval = setInterval(() => {
                         handleQuery();
                     }, 30000);
                 }
                 
                 return () => clearInterval(interval);
-            }, [autoRefresh, results]);
+            }, [autoRefresh, results, apiKey]);
+
+            // Check backend connection
+            const checkBackendConnection = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/health`, {
+                        headers: {
+                            'X-API-Key': apiKey
+                        }
+                    });
+                    if (response.ok) {
+                        setConnectionStatus('connected');
+                    } else {
+                        setConnectionStatus('error');
+                    if (response.status === 401) {
+                        setUploadStatus({ message: 'Invalid API key', error: true });
+                    }
+                }
+                } catch (error) {
+                    console.error('Backend connection error:', error);
+                    setConnectionStatus('error');
+                }
+            };
+
+            // Handle API key save
+            const handleSaveApiKey = (key) => {
+                setApiKey(key);
+                setShowApiKeyModal(false);
+            };
 
             // Handle file upload
             const handleUpload = async (selectedFiles) => {
@@ -283,37 +539,70 @@
                 
                 try {
                     setIsLoading(true);
-                    // In a real app, you would use the actual API endpoint
-                    // const response = await fetch('/upload', {
-                    //     method: 'POST',
-                    //     body: formData
-                    // });
-                    // const data = await response.json();
                     
-                    // Simulate API response
-                    setTimeout(() => {
-                        const data = {
-                            message: 'Upload successful',
-                            chunks: selectedFiles.length * 3 // Simulate 3 chunks per file
-                        };
-                        
-                        setUploadStatus(data);
-                        setFiles([...files, ...selectedFiles]);
-                        setIsLoading(false);
-                    }, 1500);
+                    // Actual API call to FastAPI backend with API key in headers
+                    const response = await fetch(`${API_BASE_URL}/upload`, {
+                        method: 'POST',
+                        headers: {
+                            'X-API-Key': apiKey
+                        },
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            throw new Error('Invalid API key');
+                        }
+                        throw new Error(`Upload failed: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    setUploadStatus(data);
+                    setFiles([...files, ...selectedFiles]);
+                    setIsLoading(false);
                     
                 } catch (error) {
                     console.error('Upload error:', error);
-                    setUploadStatus({ message: 'Upload failed', error: true });
+                    setUploadStatus({ 
+                        message: error.message || 'Upload failed. Please check your connection and try again.', 
+                        error: true 
+                    });
                     setIsLoading(false);
                 }
             };
 
             // Handle file removal
-            const handleRemoveFile = (index) => {
-                const newFiles = [...files];
-                newFiles.splice(index, 1);
-                setFiles(newFiles);
+            const handleRemoveFile = async (index) => {
+                const fileToRemove = files[index];
+                
+                try {
+                    // Actual API call to FastAPI backend to remove file with API key
+                    const response = await fetch(`${API_BASE_URL}/files/${encodeURIComponent(fileToRemove.name)}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-API-Key': apiKey
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            throw new Error('Invalid API key');
+                        }
+                        throw new Error(`File removal failed: ${response.statusText}`);
+                    }
+                    
+                    const newFiles = [...files];
+                    newFiles.splice(index, 1);
+                    setFiles(newFiles);
+                    
+                } catch (error) {
+                    console.error('File removal error:', error);
+                    setUploadStatus({ 
+                        message: error.message || 'File removal failed. Please try again.', 
+                        error: true 
+                    });
+                }
             };
 
             // Handle query submission
@@ -323,75 +612,34 @@
                 setIsLoading(true);
                 
                 try {
-                    // In a real app, you would use the actual API endpoint
-                    // const response = await fetch('/query', {
-                    //     method: 'POST',
-                    //     headers: {
-                    //         'Content-Type': 'application/json'
-                    //     },
-                    //     body: JSON.stringify({ question })
-                    // });
-                    // const data = await response.json();
+                    // Actual API call to FastAPI backend with API key
+                    const response = await fetch(`${API_BASE_URL}/query`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': apiKey
+                        },
+                        body: JSON.stringify({ question })
+                    });
                     
-                    // Simulate API response with variations
-                    setTimeout(() => {
-                        const responses = [
-                            {
-                                answer: `Based on the research documents, ${question} is addressed in several ways. The most effective approach appears to be combining multiple methodologies for optimal results.`,
-                                confidence: 0.85,
-                                citations: [
-                                    { 
-                                        text: "Research shows that this approach yields positive results in 85% of cases (Smith et al., 2022).",
-                                        source: "Advanced Research Methods, pp. 112-115"
-                                    },
-                                    { 
-                                        text: "A recent study demonstrated significant improvements when applying this methodology (Johnson, 2023).",
-                                        source: "Journal of Scientific Studies, Vol. 15, Issue 2"
-                                    },
-                                    { 
-                                        text: "The combined approach has been validated across multiple domains (Chen et al., 2021).",
-                                        source: "International Conference on Research Innovations"
-                                    }
-                                ]
-                            },
-                            {
-                                answer: `The research indicates that ${question} can be best understood through a multi-disciplinary lens. Recent breakthroughs in computational analysis have provided new insights into this area.`,
-                                confidence: 0.92,
-                                citations: [
-                                    { 
-                                        text: "Computational analysis has revolutionized this field (Brown, 2023).",
-                                        source: "Data Science Review, Vol. 8"
-                                    },
-                                    { 
-                                        text: "Interdisciplinary approaches yield more comprehensive results (Wilson & Lee, 2022).",
-                                        source: "Journal of Interdisciplinary Research, pp. 45-52"
-                                    }
-                                ]
-                            },
-                            {
-                                answer: `Studies suggest that ${question} requires a nuanced approach that considers contextual factors. The evidence points to three primary factors that influence outcomes in this domain.`,
-                                confidence: 0.78,
-                                citations: [
-                                    { 
-                                        text: "Contextual factors play a crucial role in determining outcomes (Martinez, 2021).",
-                                        source: "Contextual Analysis Quarterly"
-                                    },
-                                    { 
-                                        text: "A framework for understanding these factors was proposed in recent work (Taylor et al., 2023).",
-                                        source: "Annual Review of Advanced Studies"
-                                    }
-                                ]
-                            }
-                        ];
-                        
-                        const data = responses[Math.floor(Math.random() * responses.length)];
-                        setResults(data);
-                        setIsLoading(false);
-                        setReportCount(prev => prev + 1);
-                    }, 2000);
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            throw new Error('Invalid API key');
+                        }
+                        throw new Error(`Query failed: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    setResults(data);
+                    setIsLoading(false);
+                    setReportCount(prev => prev + 1);
                     
                 } catch (error) {
                     console.error('Query error:', error);
+                    setUploadStatus({ 
+                        message: error.message || 'Query failed. Please check your connection and try again.', 
+                        error: true 
+                    });
                     setIsLoading(false);
                 }
             };
@@ -401,40 +649,74 @@
             };
 
             return (
-                <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+                <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
                     <div className="max-w-4xl mx-auto">
                         <header className="text-center mb-12">
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2">Smart Research Assistant</h1>
-                            <p className="text-gray-600">Upload PDFs and ask questions to get AI-powered insights</p>
-                            <div className="mt-4 flex justify-center items-center space-x-4">
-                                <div className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full inline-flex items-center">
+                            <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center">
+                                <i className="fas fa-brain text-blue-500 mr-3"></i>
+                                Smart Research Assistant
+                            </h1>
+                            <p className="text-gray-600 text-lg">Upload PDFs and ask questions to get AI-powered insights</p>
+                            <div className="mt-4 flex justify-center items-center space-x-4 flex-wrap">
+                                <div className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full inline-flex items-center mb-2 sm:mb-0">
                                     <i className="fas fa-file-alt mr-2"></i>
                                     <span>Reports: {reportCount}</span>
                                 </div>
                                 <button 
                                     onClick={toggleAutoRefresh}
-                                    className={`py-1 px-3 rounded-full inline-flex items-center ${autoRefresh ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+                                    className={`py-1 px-3 rounded-full inline-flex items-center mb-2 sm:mb-0 ${autoRefresh ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
                                 >
                                     <i className={`fas ${autoRefresh ? 'fa-toggle-on' : 'fa-toggle-off'} mr-2`}></i>
                                     <span>Auto-Refresh</span>
                                 </button>
+                                <button 
+                                    onClick={() => setShowApiKeyModal(true)}
+                                    className="py-1 px-3 rounded-full inline-flex items-center mb-2 sm:mb-0 bg-purple-100 text-purple-800 hover:bg-purple-200"
+                                >
+                                    <i className={`fas ${apiKey ? 'fa-key' : 'fa-key-skeleton'} mr-2`}></i>
+                                    <span>{apiKey ? 'Change API Key' : 'Set API Key'}</span>
+                                </button>
+                                <div className={`py-1 px-3 rounded-full inline-flex items-center ${connectionStatus === 'connected' ? 'bg-green-100 text-green-800' : connectionStatus === 'error' ? 'bg-red-100 text-red-800' : connectionStatus === 'no-key' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                                    <i className={`fas ${connectionStatus === 'connected' ? 'fa-check-circle' : connectionStatus === 'error' ? 'fa-times-circle' : connectionStatus === 'no-key' ? 'fa-key' : 'fa-sync-alt fa-spin'} mr-2`}></i>
+                                    <span>
+                                        {connectionStatus === 'connected' ? 'Connected' : 
+                                         connectionStatus === 'error' ? 'Connection Error' : 
+                                         connectionStatus === 'no-key' ? 'API Key Needed' : 'Checking Connection'}
+                                    </span>
+                                </div>
                             </div>
                         </header>
 
                         <main className="space-y-8">
+                            <ApiKeyConfig 
+                                apiKey={apiKey}
+                                setApiKey={setApiKey}
+                                onSave={handleSaveApiKey}
+                                isOpen={showApiKeyModal}
+                                onClose={() => setShowApiKeyModal(false)}
+                            />
+                            
                             <PDFUpload 
                                 onUpload={handleUpload} 
                                 uploadStatus={uploadStatus} 
-                                setUploadStatus={setUploadStatus} 
+                                setUploadStatus={setUploadStatus}
+                                isLoading={isLoading}
+                                apiKey={apiKey}
                             />
                             
-                            <FileList files={files} onRemove={handleRemoveFile} />
+                            <FileList 
+                                files={files} 
+                                onRemove={handleRemoveFile} 
+                                apiKey={apiKey}
+                            />
                             
                             <QuestionInput 
                                 question={question} 
                                 setQuestion={setQuestion} 
                                 onAsk={handleQuery} 
-                                isLoading={isLoading} 
+                                isLoading={isLoading}
+                                hasFiles={files.length > 0}
+                                apiKey={apiKey}
                             />
                             
                             <ResultsDisplay results={results} isLoading={isLoading} />
